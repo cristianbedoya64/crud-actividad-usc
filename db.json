@@ -1,0 +1,16 @@
+{
+  "usuarios": [
+    {
+      "id": "d9c3",
+      "nombre": "cristian",
+      "correo": "crisalex64@hotmail.com",
+      "telefono": "3171084060"
+    },
+    {
+      "nombre": "estefany tamayo",
+      "correo": "estefenytamayo@hotmail.com",
+      "telefono": "3115554478",
+      "id": "b375"
+    }
+  ]
+}
