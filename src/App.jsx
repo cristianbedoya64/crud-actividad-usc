@@ -1,8 +1,18 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { db } from "./firebaseConfig";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
+  orderBy
+} from "firebase/firestore";
 
-const API_URL = "http://localhost:3001/usuarios";
 const initialForm = { nombre: "", correo: "", telefono: "" };
 
 export default function App() {
@@ -10,18 +20,22 @@ export default function App() {
   const [form, setForm] = useState(initialForm);
   const [editId, setEditId] = useState(null);
   const [alert, setAlert] = useState({ type: "", msg: "" });
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     fetchUsuarios();
+    // eslint-disable-next-line
   }, []);
 
+  // Leer usuarios de Firestore
   const fetchUsuarios = async () => {
     try {
-      const res = await fetch(API_URL);
-      const data = await res.json();
+      const q = query(collection(db, "usuarios"), orderBy("nombre"));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setUsuarios(data);
     } catch {
-      setAlert({ type: "error", msg: "Error al cargar usuarios" });
+      setAlert({ type: "danger", msg: "Error al cargar usuarios" });
     }
   };
 
@@ -29,38 +43,48 @@ export default function App() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const isValid = () =>
-    form.nombre.trim() &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo) &&
-    /^[0-9\s\-\+]{7,15}$/.test(form.telefono);
+  const validate = () => {
+    const newErrors = {};
+    if (!form.nombre.trim()) newErrors.nombre = "El nombre es obligatorio.";
+    if (!form.correo.trim()) newErrors.correo = "El correo es obligatorio.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) newErrors.correo = "Correo inválido.";
+    else if (usuarios.some(u => u.correo === form.correo && u.id !== editId)) newErrors.correo = "Este correo ya está registrado.";
+    if (!form.telefono.trim()) newErrors.telefono = "El teléfono es obligatorio.";
+    else if (!/^[0-9\s\-\+]{7,15}$/.test(form.telefono)) newErrors.telefono = "Teléfono inválido (7-15 dígitos).";
+    return newErrors;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isValid()) {
-      setAlert({ type: "error", msg: "Datos inválidos" });
+    const validationErrors = validate();
+    setErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) {
+      setAlert({ type: "danger", msg: "Corrige los errores del formulario." });
       return;
     }
     try {
       if (editId) {
-        await fetch(`${API_URL}/${editId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+        const usuarioRef = doc(db, "usuarios", editId);
+        await updateDoc(usuarioRef, {
+          nombre: form.nombre,
+          correo: form.correo,
+          telefono: form.telefono
         });
         setAlert({ type: "success", msg: "Usuario actualizado" });
       } else {
-        await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+        await addDoc(collection(db, "usuarios"), {
+          nombre: form.nombre,
+          correo: form.correo,
+          telefono: form.telefono
         });
         setAlert({ type: "success", msg: "Usuario agregado" });
       }
       setForm(initialForm);
       setEditId(null);
+      setErrors({});
       fetchUsuarios();
     } catch {
-      setAlert({ type: "error", msg: "Error al guardar" });
+      setAlert({ type: "danger", msg: "Error al guardar" });
     }
   };
 
@@ -77,11 +101,11 @@ export default function App() {
   const handleDelete = async (id) => {
     if (!window.confirm("¿Eliminar este usuario?")) return;
     try {
-      await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+      await deleteDoc(doc(db, "usuarios", id));
       setAlert({ type: "success", msg: "Usuario eliminado" });
       fetchUsuarios();
     } catch {
-      setAlert({ type: "error", msg: "Error al eliminar" });
+      setAlert({ type: "danger", msg: "Error al eliminar" });
     }
   };
 
@@ -114,55 +138,81 @@ export default function App() {
                   <button type="button" className="btn-close" aria-label="Close" onClick={() => setAlert({ type: "", msg: "" })}></button>
                 </div>
               )}
-              <form className="row g-3 align-items-end" onSubmit={handleSubmit} autoComplete="off">
+              <form className="row g-3 align-items-end" onSubmit={handleSubmit} autoComplete="off" role="form" aria-label="Formulario de usuario">
                 <div className="col-md-4">
-                  <label className="form-label">Nombre</label>
+                  <label className="form-label" htmlFor="nombre">Nombre</label>
                   <input
                     type="text"
+                    id="nombre"
                     name="nombre"
-                    className="form-control"
+                    className={`form-control${errors.nombre ? " is-invalid" : ""}`}
                     placeholder="Nombre"
                     value={form.nombre}
                     onChange={handleChange}
                     maxLength={50}
                     required
+                    aria-label="Nombre"
+                    aria-invalid={!!errors.nombre}
+                    tabIndex={0}
                   />
+                  {errors.nombre && <div className="invalid-feedback" role="alert">{errors.nombre}</div>}
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label">Correo</label>
+                  <label className="form-label" htmlFor="correo">Correo</label>
                   <input
                     type="email"
+                    id="correo"
                     name="correo"
-                    className="form-control"
+                    className={`form-control${errors.correo ? " is-invalid" : ""}`}
                     placeholder="Correo"
                     value={form.correo}
                     onChange={handleChange}
                     maxLength={60}
                     required
+                    aria-label="Correo"
+                    aria-invalid={!!errors.correo}
+                    tabIndex={0}
                   />
+                  {errors.correo && <div className="invalid-feedback" role="alert">{errors.correo}</div>}
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label">Teléfono</label>
+                  <label className="form-label" htmlFor="telefono">Teléfono</label>
                   <input
                     type="tel"
+                    id="telefono"
                     name="telefono"
-                    className="form-control"
+                    className={`form-control${errors.telefono ? " is-invalid" : ""}`}
                     placeholder="Teléfono"
                     value={form.telefono}
                     onChange={handleChange}
                     maxLength={15}
                     required
+                    aria-label="Teléfono"
+                    aria-invalid={!!errors.telefono}
+                    tabIndex={0}
                   />
+                  {errors.telefono && <div className="invalid-feedback" role="alert">{errors.telefono}</div>}
                 </div>
                 <div className="col-md-1 d-grid">
-                  <button type="submit" className={`btn ${editId ? "btn-warning" : "btn-success"}`}>
+                  <button
+                    type="submit"
+                    className={`btn ${editId ? "btn-warning" : "btn-success"}`}
+                    aria-label={editId ? "Actualizar usuario" : "Agregar usuario"}
+                    tabIndex={0}
+                  >
                     <i className={`bi ${editId ? "bi-pencil-square" : "bi-person-plus-fill"} me-1`}></i>
                     {editId ? "Actualizar" : "Agregar"}
                   </button>
                 </div>
                 {editId && (
                   <div className="col-md-12 d-grid">
-                    <button type="button" className="btn btn-secondary mt-2" onClick={handleCancel}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary mt-2"
+                      onClick={handleCancel}
+                      aria-label="Cancelar edición"
+                      tabIndex={0}
+                    >
                       Cancelar edición
                     </button>
                   </div>
@@ -206,14 +256,20 @@ export default function App() {
                             <button
                               className="btn btn-sm btn-primary me-2"
                               title="Editar"
+                              aria-label={`Editar usuario ${usuario.nombre}`}
                               onClick={() => handleEdit(usuario)}
+                              tabIndex={0}
+                              role="button"
                             >
                               <i className="bi bi-pencil-square"></i> Editar
                             </button>
                             <button
                               className="btn btn-sm btn-danger"
                               title="Eliminar"
+                              aria-label={`Eliminar usuario ${usuario.nombre}`}
                               onClick={() => handleDelete(usuario.id)}
+                              tabIndex={0}
+                              role="button"
                             >
                               <i className="bi bi-trash"></i> Eliminar
                             </button>
