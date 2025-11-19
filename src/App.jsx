@@ -130,7 +130,7 @@ export default function App() {
       <div className="row justify-content-center mb-4">
         <div className="col-lg-8">
           <div className="bg-primary text-white rounded shadow p-4 mb-4 text-center">
-            <h1 className="mb-0 fw-bold">CRUD Usuarios</h1>
+            <h1 className="mb-0 fw-bold">CRUD Actividad USC</h1>
             <p className="mb-0">React + Bootstrap + Firestore</p>
           </div>
         </div>
