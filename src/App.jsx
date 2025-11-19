@@ -13,7 +13,7 @@ import {
   orderBy
 } from "firebase/firestore";
 
-const initialForm = { nombre: "", correo: "", telefono: "" };
+const initialForm = { identificacion: "", nombre: "", correo: "", telefono: "" };
 
 export default function App() {
   const [usuarios, setUsuarios] = useState([]);
@@ -45,6 +45,7 @@ export default function App() {
 
   const validate = () => {
     const newErrors = {};
+    // La identificación se genera automáticamente, no se valida en el formulario
     if (!form.nombre.trim()) newErrors.nombre = "El nombre es obligatorio.";
     if (!form.correo.trim()) newErrors.correo = "El correo es obligatorio.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) newErrors.correo = "Correo inválido.";
@@ -66,13 +67,20 @@ export default function App() {
       if (editId) {
         const usuarioRef = doc(db, "usuarios", editId);
         await updateDoc(usuarioRef, {
+          identificacion: form.identificacion,
           nombre: form.nombre,
           correo: form.correo,
           telefono: form.telefono
         });
         setAlert({ type: "success", msg: "Usuario actualizado" });
       } else {
+        // Generar número de 3 dígitos aleatorio único
+        let nuevoId;
+        do {
+          nuevoId = ("000" + Math.floor(Math.random() * 1000)).slice(-3);
+        } while (usuarios.some(u => u.identificacion === nuevoId));
         await addDoc(collection(db, "usuarios"), {
+          identificacion: nuevoId,
           nombre: form.nombre,
           correo: form.correo,
           telefono: form.telefono
@@ -90,6 +98,7 @@ export default function App() {
 
   const handleEdit = (usuario) => {
     setForm({
+      identificacion: usuario.identificacion || "",
       nombre: usuario.nombre,
       correo: usuario.correo,
       telefono: usuario.telefono,
@@ -116,15 +125,17 @@ export default function App() {
   };
 
   return (
-    <div className="container fullscreen py-4" style={{maxWidth: '100vw'}}>
+    <div className="container fullscreen py-4" style={{ maxWidth: '100vw' }}>
+      {/* Encabezado */}
       <div className="row justify-content-center mb-4">
         <div className="col-lg-8">
           <div className="bg-primary text-white rounded shadow p-4 mb-4 text-center">
             <h1 className="mb-0 fw-bold">CRUD Usuarios</h1>
-            <p className="mb-0">React + Bootstrap + json-server</p>
+            <p className="mb-0">React + Bootstrap + Firestore</p>
           </div>
         </div>
       </div>
+      {/* Formulario */}
       <div className="row justify-content-center mb-4">
         <div className="col-lg-8">
           <div className="card shadow">
@@ -139,6 +150,7 @@ export default function App() {
                 </div>
               )}
               <form className="row g-3 align-items-end" onSubmit={handleSubmit} autoComplete="off" role="form" aria-label="Formulario de usuario">
+                {/* Campo de identificación oculto, no se muestra nada en el formulario */}
                 <div className="col-md-4">
                   <label className="form-label" htmlFor="nombre">Nombre</label>
                   <input
@@ -222,16 +234,17 @@ export default function App() {
           </div>
         </div>
       </div>
+      {/* Tabla de usuarios */}
       <div className="row justify-content-center">
-        <div className="col-lg-8">
-          <div className="card shadow">
+        <div className="col-12">
+          <div className="card shadow" style={{maxWidth: '100%', overflowX: 'auto'}}>
             <div className="card-header bg-light fw-bold">Listado de usuarios</div>
             <div className="card-body p-0">
-              <div className="table-responsive">
-                <table className="table table-hover table-bordered align-middle mb-0">
+              <div className="table-responsive" style={{minWidth: 700}}>
+                <table className="table table-hover table-bordered align-middle mb-0" style={{minWidth: 700}}>
                   <thead className="table-primary">
                     <tr>
-                      <th>ID</th>
+                      <th>Identificación</th>
                       <th>Nombre</th>
                       <th>Correo</th>
                       <th>Teléfono</th>
@@ -248,7 +261,7 @@ export default function App() {
                     ) : (
                       usuarios.map((usuario) => (
                         <tr key={usuario.id}>
-                          <td>{usuario.id}</td>
+                          <td>{usuario.identificacion}</td>
                           <td>{usuario.nombre}</td>
                           <td>{usuario.correo}</td>
                           <td>{usuario.telefono}</td>
